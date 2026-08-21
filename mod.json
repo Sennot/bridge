@@ -1,0 +1,26 @@
+{
+    "geode": "5.8.2",
+    "gd": {
+        "win": "2.2081"
+    },
+    "id": "elkiteam.cpsbridge",
+    "name": "Bot CPS Bridge",
+    "version": "v0.1.0",
+    "developer": "ELKITEAM 2.0",
+    "description": "Compatibility bridge that keeps MegaHack's CPS hold indicator responsive during macro playback without injecting gameplay inputs.",
+    "early-load": true,
+    "settings": {
+        "enabled": {
+            "type": "bool",
+            "name": "Enabled",
+            "description": "Enable CPS hold-state compatibility.",
+            "default": true
+        },
+        "fallback-pulse": {
+            "type": "bool",
+            "name": "Fallback Pulse",
+            "description": "Use a subtle active-color pulse when MegaHack does not expose its own held colour for macro inputs.",
+            "default": true
+        }
+    }
+}

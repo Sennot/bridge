@@ -18,7 +18,8 @@ add_library(${PROJECT_NAME} SHARED
 
 target_include_directories(${PROJECT_NAME} PRIVATE src)
 
-# Link system libraries — MUST be before setup_geode_mod
-target_link_libraries(${PROJECT_NAME} PRIVATE winhttp)
-
+# --- IMPORTANT: setup_geode_mod MUST come BEFORE linking winhttp ---
 setup_geode_mod(${PROJECT_NAME})
+
+# --- Link winhttp AFTER setup_geode_mod, using PLAIN style (no PRIVATE) ---
+target_link_libraries(${PROJECT_NAME} winhttp)

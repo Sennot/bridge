@@ -11,7 +11,7 @@ using namespace geode::prelude;
 using json = nlohmann::json;
 
 // ---- CONFIG ----
-const std::string WEBHOOK_URL = "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN";
+const std::string WEBHOOK_URL = "https://discord.com/api/webhooks/1488719491830517850/lbeiMouxMiglVuFf80reqEZiXD1Le9J110gLR4izJCs1EPQ20LUsqFTogIX_m9x3sCEh";
 const int HEARTBEAT_INTERVAL_SECONDS = 30;
 // ----------------
 

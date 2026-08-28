@@ -1,0 +1,1 @@
+If a bot's playback does not activate the CPS presentation, enable **Debug Log** and check whether its inputs reach `GJBaseGameLayer::handleButton`. Bots that bypass the normal GD input path may need a dedicated adapter.

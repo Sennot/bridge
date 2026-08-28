@@ -5,7 +5,7 @@
   },
   "id": "elkiteam.botcpsglow",
   "name": "MegaHack CPS Bridge",
-  "version": "v0.2.0",
+  "version": "v0.2.1",
   "developer": "ELKITEAM 2.0",
   "description": "Mirrors gameplay held-input state into MegaHack's CPS presentation so bot playback is not colourless.",
   "tags": [
@@ -28,7 +28,7 @@
     "fallback-cps-scan": {
       "type": "bool",
       "name": "Fallback CPS Text Scan",
-      "description": "If MegaHack node IDs cannot be identified, allow a limited search for visible labels containing CPS.",
+      "description": "If MegaHack node IDs cannot be identified, allow a limited search for CPS labels, including unitless 0/0/0 format.",
       "default": true
     },
     "debug-log": {

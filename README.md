@@ -13,3 +13,10 @@ Because it observes the shared gameplay input path rather than private bot inter
 ## Build
 
 Set `GEODE_SDK`, then run `build.bat`.
+
+## v0.2.1
+
+- Supports MegaHack CPS with Units disabled (`0/0/0`).
+- Uses native-strength green instead of the dim blended pulse from v0.2.0.
+- Keeps the discovered CPS label cached across releases and re-discovers if MegaHack rebuilds it.
+- Debug discovery logging is de-spammed and reports the matched label text/ID.

@@ -1,0 +1,272 @@
+diff --git a/README.md b/README.md
+index ea1db87..af6cae1 100644
+--- a/README.md
++++ b/README.md
+@@ -13,3 +13,10 @@ Because it observes the shared gameplay input path rather than private bot inter
+ ## Build
+ 
+ Set `GEODE_SDK`, then run `build.bat`.
++
++## v0.2.1
++
++- Supports MegaHack CPS with Units disabled (`0/0/0`).
++- Uses native-strength green instead of the dim blended pulse from v0.2.0.
++- Keeps the discovered CPS label cached across releases and re-discovers if MegaHack rebuilds it.
++- Debug discovery logging is de-spammed and reports the matched label text/ID.
+diff --git a/mod.json b/mod.json
+index ac3c0c2..7ef95e6 100644
+--- a/mod.json
++++ b/mod.json
+@@ -5,7 +5,7 @@
+   },
+   "id": "elkiteam.botcpsglow",
+   "name": "MegaHack CPS Bridge",
+-  "version": "v0.2.0",
++  "version": "v0.2.1",
+   "developer": "ELKITEAM 2.0",
+   "description": "Mirrors gameplay held-input state into MegaHack's CPS presentation so bot playback is not colourless.",
+   "tags": [
+@@ -28,7 +28,7 @@
+     "fallback-cps-scan": {
+       "type": "bool",
+       "name": "Fallback CPS Text Scan",
+-      "description": "If MegaHack node IDs cannot be identified, allow a limited search for visible labels containing CPS.",
++      "description": "If MegaHack node IDs cannot be identified, allow a limited search for CPS labels, including unitless 0/0/0 format.",
+       "default": true
+     },
+     "debug-log": {
+diff --git a/src/main.cpp b/src/main.cpp
+index 238292c..284775f 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -10,7 +10,6 @@
+ 
+ #include <algorithm>
+ #include <array>
+-#include <chrono>
+ #include <string_view>
+ #include <vector>
+ 
+@@ -20,7 +19,7 @@ namespace cpsbridge {
+ 
+ struct LabelState {
+     cocos2d::CCLabelBMFont* label = nullptr;
+-    cocos2d::ccColor3B color{};
++    cocos2d::ccColor3B idleColor{};
+     GLubyte opacity = 255;
+ };
+ 
+@@ -34,6 +33,50 @@ static bool containsCpsToken(std::string_view text) {
+     return false;
+ }
+ 
++static bool looksLikeUnitlessCpsValue(std::string_view text) {
++    // MegaHack can hide the CPS unit and render the counter as e.g. 0/0/0.
++    // Keep this deliberately strict so unrelated labels such as percentages,
++    // object counts, etc. are not picked up by the fallback scan.
++    size_t i = 0;
++    const auto skipSpaces = [&]() {
++        while (i < text.size() && (text[i] == ' ' || text[i] == '\t')) ++i;
++    };
++    const auto parseNumber = [&]() -> bool {
++        skipSpaces();
++        size_t digits = 0;
++        while (i < text.size() && text[i] >= '0' && text[i] <= '9' && digits < 3) {
++            ++i;
++            ++digits;
++        }
++        if (digits == 0) return false;
++        // Reject long values that only matched the first three digits.
++        if (i < text.size() && text[i] >= '0' && text[i] <= '9') return false;
++        skipSpaces();
++        return true;
++    };
++
++    skipSpaces();
++    for (int group = 0; group < 3; ++group) {
++        if (!parseNumber()) return false;
++        if (group != 2) {
++            if (i >= text.size() || text[i] != '/') return false;
++            ++i;
++        }
++    }
++    skipSpaces();
++    return i == text.size();
++}
++
++static bool isStrongGreen(cocos2d::ccColor3B color) {
++    return color.g >= 160 &&
++           static_cast<int>(color.g) >= static_cast<int>(color.r) + 35 &&
++           static_cast<int>(color.g) >= static_cast<int>(color.b) + 35;
++}
++
++static bool sameColor(cocos2d::ccColor3B a, cocos2d::ccColor3B b) {
++    return a.r == b.r && a.g == b.g && a.b == b.b;
++}
++
+ class Bridge final {
+ public:
+     static Bridge& get() {
+@@ -80,59 +123,68 @@ public:
+         if (scene != m_scene) {
+             restoreAndRelease();
+             m_scene = scene;
++            m_wasActive = false;
++            m_haveNativeActiveColor = false;
++            m_lastDiscoveryCount = -1;
+         }
+ 
+         if (!m_enabled || !scene || !isMegaHackLoaded()) {
+             if (!m_labels.empty()) restoreAndRelease();
++            m_wasActive = false;
+             return;
+         }
+ 
++        // Keep a stable reference to the MegaHack status label while the scene
++        // is alive. v0.2.0 released the label every time a button was released,
++        // which forced a full scene scan on every click and made setting changes
++        // (notably hiding the "CPS" unit) much more fragile.
++        if (!labelsStillAttached()) restoreAndRelease();
++        if (m_labels.empty()) discover(scene);
++        if (m_labels.empty()) return;
++
+         const bool active = anyHeld();
+         if (!active) {
+-            // Learn MegaHack's current idle/theme colour while we are not
+-            // presenting an automated/manual held state. This prevents the
+-            // bridge from permanently overwriting user theme changes.
+-            if (!m_labels.empty()) {
++            if (m_wasActive) {
+                 for (auto& state : m_labels) {
+                     if (!state.label) continue;
+-                    state.label->setColor(state.color);
++                    state.label->setColor(state.idleColor);
+                     state.label->setOpacity(state.opacity);
+                 }
+-                restoreAndRelease();
++            } else {
++                // Learn MegaHack theme changes only while the bridge is idle.
++                for (auto& state : m_labels) {
++                    if (!state.label) continue;
++                    state.idleColor = state.label->getColor();
++                    state.opacity = state.label->getOpacity();
++                }
+             }
++            m_wasActive = false;
+             return;
+         }
+ 
+-        if (m_labels.empty()) discover(scene);
+-        if (m_labels.empty()) return;
++        // If MegaHack itself presents a stronger green (normal physical input),
++        // learn that exact colour and reuse it for bot-held inputs. Otherwise use
++        // pure green as a deterministic fallback. This fixes the dim/pastel look
++        // from v0.2.0's 90/255/125 blend pulse.
++        for (auto& state : m_labels) {
++            if (!state.label) continue;
++            const auto current = state.label->getColor();
++            if (!sameColor(current, state.idleColor) && isStrongGreen(current)) {
++                m_nativeActiveColor = current;
++                m_haveNativeActiveColor = true;
++            }
++        }
+ 
+-        // Exact SiliFork presentation style: green triangle pulse while an
+-        // input is held. This is presentation-only; no gameplay input is
+-        // synthesized and MegaHack's CPS numeric counting is untouched.
+-        const auto now = std::chrono::steady_clock::now().time_since_epoch();
+-        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
+-        const int wave = static_cast<int>(ms % 520);
+-        const int triangle = wave <= 260 ? wave : 520 - wave;
+-        const int pulse = 185 + triangle * 70 / 260;
+-        const cocos2d::ccColor3B target{90, 255, 125};
+-
+-        const auto blend = [pulse](GLubyte from, GLubyte to) -> GLubyte {
+-            return static_cast<GLubyte>(
+-                (static_cast<int>(from) * (255 - pulse) +
+-                 static_cast<int>(to) * pulse) /
+-                255
+-            );
+-        };
++        const cocos2d::ccColor3B target = m_haveNativeActiveColor
++            ? m_nativeActiveColor
++            : cocos2d::ccColor3B{0, 255, 0};
+ 
+         for (auto& state : m_labels) {
+             if (!state.label) continue;
+-            state.label->setColor(cocos2d::ccColor3B{
+-                blend(state.color.r, target.r),
+-                blend(state.color.g, target.g),
+-                blend(state.color.b, target.b)
+-            });
++            state.label->setColor(target);
+             state.label->setOpacity(state.opacity);
+         }
++        m_wasActive = true;
+     }
+ 
+ private:
+@@ -143,6 +195,10 @@ private:
+     std::array<std::array<bool, 4>, 2> m_held{};
+     cocos2d::CCScene* m_scene = nullptr;
+     std::vector<LabelState> m_labels;
++    bool m_wasActive = false;
++    bool m_haveNativeActiveColor = false;
++    cocos2d::ccColor3B m_nativeActiveColor{0, 255, 0};
++    int m_lastDiscoveryCount = -1;
+ 
+     static bool isMegaHackLoaded() {
+         auto* loader = Loader::get();
+@@ -179,7 +235,9 @@ private:
+         if (!label || isExcludedLabel(label)) return false;
+         const char* raw = label->getString();
+         const std::string_view text = raw ? raw : "";
+-        return containsCpsToken(text) || containsCpsToken(label->getID().view());
++        return containsCpsToken(text) ||
++               containsCpsToken(label->getID().view()) ||
++               looksLikeUnitlessCpsValue(text);
+     }
+ 
+     static bool hasMegaHackHint(cocos2d::CCNode* node) {
+@@ -196,6 +254,14 @@ private:
+         return false;
+     }
+ 
++    bool labelsStillAttached() const {
++        if (m_labels.empty()) return true;
++        for (const auto& state : m_labels) {
++            if (!state.label || !state.label->getParent()) return false;
++        }
++        return true;
++    }
++
+     static void collectLabels(
+         cocos2d::CCNode* node,
+         int depth,
+@@ -250,15 +316,24 @@ private:
+             });
+         }
+ 
+-        if (m_debugLog) {
++        if (m_debugLog && static_cast<int>(m_labels.size()) != m_lastDiscoveryCount) {
++            m_lastDiscoveryCount = static_cast<int>(m_labels.size());
+             geode::log::info("MegaHack CPS Bridge: found {} CPS label(s)", m_labels.size());
++            for (const auto& state : m_labels) {
++                if (!state.label) continue;
++                geode::log::debug(
++                    "MegaHack CPS Bridge label: id='{}' text='{}'",
++                    state.label->getID().view(),
++                    state.label->getString() ? state.label->getString() : ""
++                );
++            }
+         }
+     }
+ 
+     void restoreAndRelease() {
+         for (auto& state : m_labels) {
+             if (!state.label) continue;
+-            state.label->setColor(state.color);
++            state.label->setColor(state.idleColor);
+             state.label->setOpacity(state.opacity);
+             state.label->release();
+         }

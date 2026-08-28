@@ -1,38 +1,85 @@
 {
-    "geode": "5.8.2",
-    "gd": {
-        "win": "2.2081"
+  "geode": "5.8.2",
+  "gd": {
+    "win": "2.2081"
+  },
+  "id": "elkiteam.botcpsglow",
+  "name": "Bot CPS Glow",
+  "version": "v0.1.0",
+  "developer": "ELKITEAM 2.0",
+  "description": "Makes Mega Hack's CPS counter pulse green for bot-generated gameplay inputs.",
+  "tags": [
+    "utility",
+    "gameplay"
+  ],
+  "settings": {
+    "enabled": {
+      "type": "bool",
+      "name": "Enable Bot CPS Glow",
+      "description": "Pulse the Mega Hack CPS counter when supported bots generate gameplay inputs.",
+      "default": true
     },
-    "id": "elkiteam.cpsbridge",
-    "name": "Bot CPS Bridge",
-    "version": "v0.1.0",
-    "developer": "ELKITEAM 2.0",
-    "description": "Compatibility bridge that keeps MegaHack's CPS hold indicator responsive during macro playback without injecting gameplay inputs.",
-    "dependencies": [
-        {
-            "id": "geode.node",
-            "version": ">=v1.0.0",
-            "importance": "required"
-        },
-        {
-            "id": "nlohmann.json",
-            "version": ">=v3.11.0",
-            "importance": "required"
-        }
-    ],
-    "early-load": true,
-    "settings": {
-        "enabled": {
-            "type": "bool",
-            "name": "Enabled",
-            "description": "Enable CPS hold-state compatibility.",
-            "default": true
-        },
-        "fallback-pulse": {
-            "type": "bool",
-            "name": "Fallback Pulse",
-            "description": "Use a subtle active-color pulse when MegaHack does not expose its own held colour for macro inputs.",
-            "default": true
-        }
+    "visual-title": {
+      "type": "title",
+      "name": "Visual"
+    },
+    "pulse-period": {
+      "type": "int",
+      "name": "Pulse Period",
+      "description": "Duration of one green pulse cycle in milliseconds.",
+      "default": 520,
+      "min": 160,
+      "max": 1400
+    },
+    "pulse-strength": {
+      "type": "int",
+      "name": "Green Strength",
+      "description": "How strongly the original CPS colour blends toward green.",
+      "default": 100,
+      "min": 20,
+      "max": 100
+    },
+    "pulse-linger": {
+      "type": "int",
+      "name": "Click Linger",
+      "description": "Keeps the pulse visible briefly after a short bot click/release, so 1-tick inputs can still be seen.",
+      "default": 110,
+      "min": 0,
+      "max": 500
+    },
+    "all-buttons": {
+      "type": "bool",
+      "name": "All Gameplay Buttons",
+      "description": "Also react to platformer Left/Right bot inputs. Off = Jump only.",
+      "default": false
+    },
+    "detection-title": {
+      "type": "title",
+      "name": "Bot Detection"
+    },
+    "generic-detection": {
+      "type": "bool",
+      "name": "Generic Bot Detection",
+      "description": "Treat unknown DLLs with names containing bot/macro/replay/TAS terms as automated input sources.",
+      "default": true
+    },
+    "extra-module-tokens": {
+      "type": "string",
+      "name": "Extra Module Tokens",
+      "description": "Comma-separated DLL/mod ID fragments to treat as bots. Example: mybot, author.customreplay",
+      "default": ""
+    },
+    "fallback-cps-scan": {
+      "type": "bool",
+      "name": "Fallback CPS Text Scan",
+      "description": "If Mega Hack node IDs are unavailable, fall back to finding visible labels containing CPS.",
+      "default": true
+    },
+    "debug-log": {
+      "type": "bool",
+      "name": "Debug Log",
+      "description": "Log detected bot input source modules when the source changes.",
+      "default": false
     }
+  }
 }
